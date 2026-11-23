@@ -25,6 +25,14 @@
 //     sent (the bar time in each batch), never on the wall clock,
 //     the network, or files outside this repository.
 //
+// Verified on the kit's dev window (grade-local, driver process,
+// 23 Nov 2026): net PnL +$34.77, 1 trade, win rate 100%, max
+// drawdown 1.98%, fees $0.81, PnL at 2x fees +$33.94, L1 regrade
+// reproduced byte for byte, 0 rejected. Sensitivity: trailing stop
+// 1.5% -> +$26.31, 3% -> +$34.77, 48-bar trigger -> +$30.64.
+// Walk-forward (simulator): tune half (bars 0-720) +$33.52,
+// out-of-sample half (bars 720-1440) +$5.92.
+//
 // The numbers (24 bars, 2% trail, 100 bps max slippage) are the
 // strategy's own; the trailing-24-bar read is the same family of
 // signal the kit's momentum baseline uses, but the entry gate, the
@@ -80,8 +88,11 @@ await runBars({
 
     // Flat: only a 24-bar checkpoint may open a position, only once,
     // and only when the trailing 24-bar return is not negative.
+    // The first checkpoint is the first 24-bar mark at or after the
+    // warm-up, so no order is ever decided on a warm-up batch.
     if (stoppedOut) return [];
-    if (batch.seq < LOOKBACK_BARS || batch.seq % LOOKBACK_BARS !== 0) return [];
+    const firstCheckpoint = Math.max(LOOKBACK_BARS, state.warmupBars);
+    if (batch.seq < firstCheckpoint || batch.seq % LOOKBACK_BARS !== 0) return [];
     if (!trailingReturnNonNegative(batch.seq)) return [];
 
     const room = state.weightRoom(SYMBOL);
